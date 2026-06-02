@@ -1,1 +1,455 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ứng dụng Chấm điểm Phát âm Tiếng Trung</title>
+    <!-- Tailwind CSS CDN để tạo giao diện đẹp, hiện đại -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Hanzi Writer CDN để hỗ trợ tính năng tập viết chữ Hán -->
+    <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
+    <!-- Canvas Confetti CDN để tạo hiệu ứng chúc mừng sinh động -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&family=Quicksand:wght@500;700&display=swap');
+        body {
+            font-family: 'Quicksand', 'Noto Sans SC', sans-serif;
+        }
+        .hanzi-box svg {
+            border: 1px dashed #cbd5e1;
+            background: #f8fafc;
+            border-radius: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-amber-50 to-orange-100 min-h-screen text-slate-800">
 
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- Header -->
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-orange-600 mb-2 flex justify-center items-center gap-2">
+                🇨🇳 <span>Trung Văn Phát Âm Vương</span>
+            </h1>
+            <p class="text-slate-600 font-medium">Luyện phát âm chuẩn và học viết chữ Hán dễ dàng</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Cột bên trái: Danh sách từ vựng phong phú -->
+            <div class="lg:col-span-1 bg-white rounded-2xl p-6 shadow-xl border border-orange-100 h-[calc(100vh-180px)] flex flex-col">
+                <h2 class="text-xl font-bold text-slate-700 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2 flex-shrink-0">
+                    📚 Danh sách từ vựng (<span id="vocab-count">0</span>)
+                </h2>
+                <div id="vocab-list" class="space-y-3 overflow-y-auto flex-1 pr-1">
+                    <!-- Từ vựng sẽ được render tự động từ JS -->
+                </div>
+            </div>
+
+            <!-- Cột bên phải: Khu vực luyện tập chi tiết -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Thẻ hiển thị từ vựng hiện tại -->
+                <div id="practice-card" class="bg-white rounded-2xl p-8 shadow-xl border border-orange-100 relative overflow-hidden hidden">
+                    <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-orange-400 to-amber-400"></div>
+                    
+                    <div class="flex flex-col md:flex-row gap-6 items-center md:items-start">
+                        <!-- Hình ảnh minh họa -->
+                        <img id="word-img" src="" alt="Minh họa" class="w-32 h-32 md:w-40 md:h-40 object-cover rounded-xl shadow-md border-2 border-orange-50">
+                        
+                        <!-- Nội dung từ vựng -->
+                        <div class="flex-1 text-center md:text-left space-y-2">
+                            <h3 id="word-character" class="text-5xl font-bold text-orange-600 tracking-wide"></h3>
+                            <p id="word-pinyin" class="text-xl font-bold text-amber-600"></p>
+                            <p id="word-meaning" class="text-lg text-slate-700 font-medium"></p>
+                        </div>
+                    </div>
+
+                    <!-- Ví dụ ứng dụng -->
+                    <div class="mt-6 p-4 bg-orange-50/50 rounded-xl border border-orange-100/50">
+                        <span class="text-xs font-bold uppercase tracking-wider text-orange-500 block mb-1">Ví dụ:</span>
+                        <p id="example-cn" class="text-2xl text-slate-800 font-semibold mb-1"></p>
+                        <p id="example-pinyin" class="text-sm font-medium text-amber-700 mb-1"></p>
+                        <p id="example-vn" class="text-sm text-slate-600"></p>
+                    </div>
+
+                    <!-- Bảng điều khiển âm thanh -->
+                    <div class="mt-8 flex flex-wrap justify-center gap-4 py-4 border-t border-slate-100">
+                        <!-- Nút nghe phát âm mẫu -->
+                        <button onclick="speakCurrentWord()" class="px-5 py-3 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl transition duration-200 flex items-center gap-2 shadow-md hover:shadow-lg active:scale-95 cursor-pointer">
+                            🔊 Nghe mẫu
+                        </button>
+
+                        <!-- Nút bấm để nói -->
+                        <button id="btn-record" onclick="toggleRecognition()" class="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition duration-200 flex items-center gap-2 shadow-md hover:shadow-lg active:scale-95 cursor-pointer">
+                            🎤 <span id="record-text">Bấm để nói</span>
+                        </button>
+                    </div>
+
+                    <!-- Vùng hiển thị kết quả chấm điểm và Mặt mèo buồn -->
+                    <div id="result-box" class="mt-4 p-4 rounded-xl text-center font-bold hidden transition-all duration-300">
+                        <!-- Vùng chứa mặt mèo buồn (Sẽ hiện ra khi đọc sai) -->
+                        <div id="sad-cat-box" class="hidden text-center mb-2">
+                            <span class="text-6xl block animate-bounce">😿</span>
+                            <p class="text-xs text-red-500 font-normal mt-1">Meo... Bạn phát âm chưa chuẩn rồi!</p>
+                        </div>
+                        <p id="result-status" class="text-lg mb-1"></p>
+                        <p id="result-details" class="text-sm font-medium opacity-90"></p>
+                    </div>
+                </div>
+
+                <!-- Thẻ hướng dẫn tập viết -->
+                <div id="writing-card" class="bg-white rounded-2xl p-6 shadow-xl border border-orange-100 hidden">
+                    <h3 class="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+                        ✍️ Hướng dẫn nét viết (Click vào ô chữ để xem hoạt họa)
+                    </h3>
+                    <div id="hanzi-container" class="flex flex-wrap gap-4 justify-center py-2">
+                        <!-- Các ô tập viết chữ Hán của Hanzi Writer sẽ render ở đây -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT XỬ LÝ LOGIC ỨNG DỤNG -->
+    <script>
+        // 1. DANH SÁCH TỪ VỰNG MỞ RỘNG (12 TỪ THÔNG DỤNG PHÂN LOẠI)
+        const vocabularyData = [
+            {
+                id: 1,
+                character: "你好",
+                pinyin: "nǐ hǎo",
+                meaning: "Xin chào",
+                exampleCn: "你好！很高兴认识你。",
+                examplePinyin: "Nǐ hǎo! Hěn gāoxìng rènshi nǐ.",
+                exampleVn: "Xin chào! Rất vui được quen biết bạn.",
+                image: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&auto=format&fit=crop&q=60"
+            },
+            {
+                id: 2,
+                character: "谢谢",
+                pinyin: "xièxie",
+                meaning: "Cảm ơn",
+                exampleCn: "谢谢你的帮助！",
+                examplePinyin: "Xièxie nǐ de bāngzhù!",
+                exampleVn: "Cảm ơn sự giúp đỡ của bạn!",
+                image: "https://images.unsplash.com/photo-1616628188506-4bd8b66a9103?w=400&auto=format&fit=crop&q=60"
+            },
+            {
+                id: 3,
+                character: "苹果",
+                pinyin: "píngguǒ",
+                meaning: "Quả táo",
+                exampleCn: "我每天吃一个苹果。",
+                examplePinyin: "Wǒ měitiān chī yī gè píngguǒ.",
+                exampleVn: "Tôi ăn một quả táo mỗi ngày.",
+                image: "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=400&auto=format&fit=crop&q=60"
+            },
+            {
+                id: 4,
+                character: "学习",
+                pinyin: "xuéxí",
+                meaning: "Học tập",
+                exampleCn: "我们一起学习汉语吧。",
+                examplePinyin: "Wǒmen yīqǐ xuéxí Hànyǔ ba.",
+                exampleVn: "Chúng ta cùng nhau học tiếng Trung nhé.",
+                image: "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=400&auto=format&fit=crop&q=60"
+            },
+            {
+                id: 5,
+                character: "老师",
+                pinyin: "lǎoshī",
+                meaning: "Thầy giáo / Cô giáo",
+                exampleCn: "李老师对学生很好。",
+                examplePinyin: "Lǐ lǎoshī duì xuéshēng hěn hǎo.",
+                exampleVn: "Thầy Lý đối xử rất tốt với học sinh.",
+                image: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=400&auto=format&fit=crop&q=60"
+            },
+            {
+                id: 6,
+                character: "再见",
+                pinyin: "zàijiàn",
+                meaning: "Tạm biệt",
+                exampleCn: "妈妈，我去学校了，再见！",
+                examplePinyin: "Māma, wǒ qù xuéxiào le, zàijiàn!",
+                exampleVn: "Mẹ ơi, con đi học đây, tạm biệt mẹ!",
+                image: "https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=400&auto=format&fit=crop&q=60"
+            },
+            {
+                id: 7,
+                character: "咖啡",
+                pinyin: "kāfēi",
+                meaning: "Cà phê",
+                exampleCn: "你不喜欢喝热咖啡吗？",
+                examplePinyin: "Nǐ bù xǐhuan hē rè kāfēi ma?",
+                exampleVn: "Bạn không thích uống cà phê nóng à?",
+                image: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=400&auto=format&fit=crop&q=60"
+            },
+            {
+                id: 8,
+                character: "中国",
+                pinyin: "Zhōngguó",
+                meaning: "Trung Quốc",
+                exampleCn: "长城是中国著名的景点。",
+                examplePinyin: "Chángchéng shì Zhōngguó zhùmíng de jǐngdiǎn.",
+                exampleVn: "Vạn Lý Trường Thành là địa điểm du lịch nổi tiếng của Trung Quốc.",
+                image: "https://images.unsplash.com/photo-1508672019048-805c876b67e2?w=400&auto=format&fit=crop&q=60"
+            },
+            {
+                id: 9,
+                character: "朋友",
+                pinyin: "péngyou",
+                meaning: "Bạn bè",
+                exampleCn: "他是我的好朋友。",
+                examplePinyin: "Tā shì wǒ de hǎo péngyou.",
+                exampleVn: "Anh ấy là người bạn tốt của tôi.",
+                image: "https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?w=400&auto=format&fit=crop&q=60"
+            },
+            {
+                id: 10,
+                character: "天气",
+                pinyin: "tiānqì",
+                meaning: "Thời tiết",
+                exampleCn: "今天的天气非常好。",
+                examplePinyin: "Jīntiān de tiānqì fēicháng hǎo.",
+                exampleVn: "Thời tiết hôm nay vô cùng đẹp.",
+                image: "https://images.unsplash.com/photo-1601297183305-6df142704ea2?w=400&auto=format&fit=crop&q=60"
+            },
+            {
+                id: 11,
+                character: "喜欢",
+                pinyin: "xǐhuan",
+                meaning: "Thích",
+                exampleCn: "我很喜欢听中国 group 歌。(我很喜欢听中文歌。)",
+                exampleCn: "我很喜欢听中文歌。",
+                examplePinyin: "Wǒ hěn xǐhuan tīng Zhōngwén gē.",
+                exampleVn: "Tôi rất thích nghe bài hát tiếng Trung.",
+                image: "https://images.unsplash.com/photo-1487180142328-0c4e37023af5?w=400&auto=format&fit=crop&q=60"
+            },
+            {
+                id: 12,
+                character: "高兴",
+                pinyin: "gāoxìng",
+                meaning: "Vui vẻ, mừng rỡ",
+                exampleCn: "今天能见到你，我很高兴。",
+                examplePinyin: "Jīntiān néng jiàndào nǐ, wǒ hěn gāoxìng.",
+                exampleVn: "Hôm nay được gặp bạn, tôi rất vui.",
+                image: "https://images.unsplash.com/photo-1516624683217-bf02fc6b6b7c?w=400&auto=format&fit=crop&q=60"
+            }
+        ];
+
+        let currentIndex = 0;
+        let recognition = null;
+        let isRecording = false;
+        let hanziWriters = [];
+
+        // Khởi tạo ứng dụng
+        document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("vocab-count").innerText = vocabularyData.length;
+            renderVocabList();
+            initSpeechRecognition();
+            selectWord(0); // Mặc định chọn từ đầu tiên
+        });
+
+        // 2. RENDER DANH SÁCH TỪ VỰNG LÊN SIDEBAR
+        function renderVocabList() {
+            const listContainer = document.getElementById("vocab-list");
+            listContainer.innerHTML = "";
+
+            vocabularyData.forEach((item, index) => {
+                const btn = document.createElement("button");
+                btn.id = `vocab-item-${index}`;
+                btn.className = `w-full text-left p-3 rounded-xl border border-slate-100 transition-all duration-200 flex items-center justify-between group cursor-pointer`;
+                btn.onclick = () => selectWord(index);
+                
+                btn.innerHTML = `
+                    <div>
+                        <div class="text-xl font-bold text-slate-800 group-hover:text-orange-500 transition">${item.character}</div>
+                        <div class="text-xs text-slate-500 font-medium">${item.pinyin} - ${item.meaning}</div>
+                    </div>
+                    <span class="text-xl opacity-0 group-hover:opacity-100 transition-opacity">👉</span>
+                `;
+                listContainer.appendChild(btn);
+            });
+        }
+
+        // Chọn từ để hiển thị chi tiết
+        function selectWord(index) {
+            document.querySelectorAll("[id^='vocab-item-']").forEach(el => {
+                el.classList.remove("bg-orange-50", "border-orange-200", "shadow-sm");
+            });
+            const activeItem = document.getElementById(`vocab-item-${index}`);
+            if (activeItem) activeItem.classList.add("bg-orange-50", "border-orange-200", "shadow-sm");
+
+            currentIndex = index;
+            const word = vocabularyData[index];
+
+            document.getElementById("practice-card").classList.remove("hidden");
+            document.getElementById("writing-card").classList.remove("hidden");
+            
+            document.getElementById("word-img").src = word.image;
+            document.getElementById("word-character").innerText = word.character;
+            document.getElementById("word-pinyin").innerText = word.pinyin;
+            document.getElementById("word-meaning").innerText = `Ý nghĩa: ${word.meaning}`;
+            
+            document.getElementById("example-cn").innerText = word.exampleCn;
+            document.getElementById("example-pinyin").innerText = word.examplePinyin;
+            document.getElementById("example-vn").innerText = word.exampleVn;
+
+            // Đóng hộp kết quả và ẩn mặt mèo khi sang từ mới
+            const resultBox = document.getElementById("result-box");
+            resultBox.className = "mt-4 p-4 rounded-xl text-center font-bold hidden";
+            document.getElementById("sad-cat-box").classList.add("hidden");
+
+            setupHanziWriter(word.character);
+        }
+
+        // 3. TÍNH NĂNG TẬP VIẾT CHỮ HÁN
+        function setupHanziWriter(character) {
+            const container = document.getElementById("hanzi-container");
+            container.innerHTML = "";
+            hanziWriters = [];
+
+            const chars = character.split("");
+            chars.forEach((char, i) => {
+                const targetId = `hanzi-target-${i}`;
+                const div = document.createElement("div");
+                div.id = targetId;
+                div.className = "hanzi-box cursor-pointer hover:scale-105 transition duration-150 shadow-sm";
+                container.appendChild(div);
+
+                const writer = HanziWriter.create(targetId, char, {
+                    width: 100,
+                    height: 100,
+                    padding: 5,
+                    strokeColor: '#ea580c',
+                    radicalColor: '#16a34a',
+                    delayBetweenStrokes: 150
+                });
+
+                writer.animateCharacter();
+                div.addEventListener('click', () => writer.animateCharacter());
+                hanziWriters.push(writer);
+            });
+        }
+
+        // 4. PHÁT ÂM MẪU (TTS)
+        function speakCurrentWord() {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const word = vocabularyData[currentIndex];
+                const utterance = new SpeechSynthesisUtterance(word.character);
+                utterance.lang = 'zh-CN';
+
+                const voices = window.speechSynthesis.getVoices();
+                const chineseVoice = voices.find(voice => voice.lang.includes('zh') || voice.lang.includes('CN'));
+                if (chineseVoice) utterance.voice = chineseVoice;
+
+                window.speechSynthesis.speak(utterance);
+            } else {
+                alert("Trình duyệt không hỗ trợ Phát âm mẫu.");
+            }
+        }
+
+        // 5. NHẬN DIỆN GIỌNG NÓI
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (SpeechRecognition) {
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.lang = 'zh-CN';
+                recognition.interimResults = false;
+
+                recognition.onstart = () => {
+                    isRecording = true;
+                    document.getElementById("btn-record").className = "px-6 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition duration-200 flex items-center gap-2 shadow-md animate-pulse cursor-pointer";
+                    document.getElementById("record-text").innerText = "Đang lắng nghe...";
+                };
+
+                recognition.onend = () => {
+                    isRecording = false;
+                    document.getElementById("btn-record").className = "px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition duration-200 flex items-center gap-2 shadow-md cursor-pointer";
+                    document.getElementById("record-text").innerText = "Bấm để nói";
+                };
+
+                recognition.onresult = (event) => {
+                    const resultText = event.results[0][0].transcript.trim();
+                    const targetText = vocabularyData[currentIndex].character;
+                    evaluatePronunciation(resultText, targetText);
+                };
+
+                recognition.onerror = (event) => {
+                    console.error(event.error);
+                    alert("Có lỗi thu âm. Vui lòng kiểm tra Micro.");
+                };
+            } else {
+                const btn = document.getElementById("btn-record");
+                btn.disabled = true;
+                btn.className = "px-6 py-3 bg-gray-300 text-gray-500 font-bold rounded-xl cursor-not-allowed flex items-center gap-2";
+                document.getElementById("record-text").innerText = "Trình duyệt không hỗ trợ Mic";
+            }
+        }
+
+        function toggleRecognition() {
+            if (!recognition) return;
+            isRecording ? recognition.stop() : recognition.start();
+        }
+
+        // 6. CHẤM ĐIỂM & ĐỔI TRẠNG THÁI HIỂN THỊ (MẶT MÈO BUỒN KHI SAI)
+        function evaluatePronunciation(spoken, target) {
+            const resultBox = document.getElementById("result-box");
+            const resultStatus = document.getElementById("result-status");
+            const resultDetails = document.getElementById("result-details");
+            const sadCatBox = document.getElementById("sad-cat-box");
+
+            const cleanSpoken = spoken.replace(/[，。！？、]/g, "");
+            const cleanTarget = target.replace(/[，。！？、]/g, "");
+
+            let matchCount = 0;
+            for (let char of cleanSpoken) {
+                if (cleanTarget.includes(char)) matchCount++;
+            }
+
+            const accuracy = cleanTarget.length > 0 ? (matchCount / cleanTarget.length) * 100 : 0;
+            resultBox.classList.remove("hidden");
+
+            // TRƯỜNG HỢP ĐÚNG (>= 80%)
+            if (accuracy >= 80) {
+                sadCatBox.classList.add("hidden"); // Ẩn mặt mèo buồn
+                resultBox.className = "mt-4 p-4 rounded-xl text-center font-bold bg-green-100 text-green-700 border border-green-200 animate-bounce";
+                resultStatus.innerText = `🎉 Tuyệt vời! Bạn phát âm chính xác! (~${Math.round(accuracy)}%)`;
+                resultDetails.innerText = `Bạn đã nói: "${spoken}"`;
+
+                triggerConfettiExplosion();
+            } 
+            // TRƯỜNG HỢP SAI (< 80%)
+            else {
+                sadCatBox.classList.remove("hidden"); // HIỆN MẶT MÈO BUỒN 迫真!
+                resultBox.className = "mt-4 p-4 rounded-xl text-center font-bold bg-red-100 text-red-700 border border-red-200";
+                resultStatus.innerText = `Chưa chính xác lắm. Hãy thử lại nhé!`;
+                resultDetails.innerText = `Hệ thống nghe được là: "${spoken || 'Không rõ âm thanh'}" (Khớp ~${Math.round(accuracy)}%)`;
+            }
+        }
+
+        // Hiệu ứng pháo hoa bong bóng nổ khi đúng
+        function triggerConfettiExplosion() {
+            const duration = 2 * 1000;
+            const animationEnd = Date.now() + duration;
+            const defaults = { startVelocity: 25, spread: 360, ticks: 50, zIndex: 1000 };
+
+            function randomInRange(min, max) { return Math.random() * (max - min) + min; }
+
+            const interval = setInterval(function() {
+                const timeLeft = animationEnd - Date.now();
+                if (timeLeft <= 0) return clearInterval(interval);
+
+                const particleCount = 40 * (timeLeft / duration);
+                confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } }));
+                confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } }));
+            }, 250);
+        }
+
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.onvoiceschanged = () => {};
+        }
+    </script>
+</body>
+</html>
